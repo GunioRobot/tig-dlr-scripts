@@ -264,29 +264,30 @@ class ShowUserTimelineCommand(TypableMapCommand): # {{{2
 
 class RetweetCommand(TypableMapCommand): # {{{2
     ''' 公式 RT を行ないます '''
-    def process(self):
-        status = self.deserialize(Status, self.post('/statuses/retweet/%d.xml' % self.status.Id))
-        retweeted = status.RetweetedStatus
-        self.notice('ユーザ %s のステータス "%s" を RT しました。' % (retweeted.User.ScreenName, retweeted.Text))
-
-    def error(self, e):
-        self.notice('エラー: RT に失敗しました。')
-        self.notice(e.Message)
-
-class UnofficialRetweetCommand(TypableMapCommand): # {{{2
-    ''' 非公式 RT を行います '''
     def __init__(self, manager, processor, msg, status, args):
         TypableMapCommand.__init__(self, manager, processor, msg, status, args)
         self.include_user = False
 
     def process(self):
-        text = '%s ' % self.args if self.args else ''
-        user = ' @%s' % self.status.User.ScreenName if self.include_user else ''
-        url = self.shorten_url('http://twitter.com/%s/status/%s' % (self.status.User.ScreenName, self.status.Id))
+        if self.args:
+            self._rt_unofficial()
+        else:
+            self._rt_official()
 
-        update_text = '%sRT%s: %s' % (text, user, url)
+    def _rt_official(self):
+        status = self.deserialize(Status, self.post('/statuses/retweet/%d.xml' % self.status.Id))
+        retweeted = status.RetweetedStatus
+        self.notice('ユーザ %s のステータス "%s" を RT しました。' % (retweeted.User.ScreenName, retweeted.Text))
+
+    def _rt_unofficial(self):
+        user = self.status.User.ScreenName
+        update_text = '%s RT @%s: %s' % (self.args, user, self.status.Text)
         self.notice(update_text)
         self.update_deferred(update_text)
+
+    def error(self, e):
+        self.notice('エラー: RT に失敗しました。')
+        self.notice(e.Message)
 
 class BlockCommand(TypableMapCommand): # {{{2
     def process(self):
@@ -314,7 +315,6 @@ manager.register('cv', 'Show conversation command', ShowConversationCommand)
 manager.register('res', 'Show reply to status command', ShowReplyToStatusCommand)
 manager.register('rres', 'Show recursive reply to status command', ShowRecursiveReplyToStatusCommand)
 manager.register('rt', 'retweet command', RetweetCommand)
-manager.register('mrt', 'Unofficial retweet command', UnofficialRetweetCommand)
 manager.register('block', 'Block command', BlockCommand)
 manager.register('spam', 'Report spam command', ReportSpamCommand)
 
